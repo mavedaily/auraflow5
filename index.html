@@ -1,1 +1,1022 @@
+<? if (typeof isExport !== 'undefined' && isExport) { ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title><?= exportData.branding.logo ?> <?= exportData.branding.name ?> Report</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 24px; background: #f8f8ff; color: #1f1b2e; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    h1 { font-size: 28px; margin: 0; color: <?= exportData.branding.primary ?>; }
+    .metrics { display: flex; gap: 16px; flex-wrap: wrap; }
+    .metric { background: white; padding: 16px; border-radius: 12px; box-shadow: 0 8px 20px rgba(76,29,149,0.1); min-width: 160px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    th, td { border: 1px solid #d1d5db; padding: 8px 12px; text-align: left; font-size: 13px; }
+    th { background: rgba(124,58,237,0.1); color: #4c1d95; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1><?= exportData.branding.logo ?> <?= exportData.branding.name ?> – Weekly Task Report</h1>
+      <p>Generated for <?= exportData.user.email ?> • <?= new Date().toDateString() ?></p>
+    </div>
+    <img src="https://dummyimage.com/160x60/4C1D95/ffffff.png&text=%F0%9F%8C%90" alt="<?= exportData.branding.logo ?> logo" style="height:60px;border-radius:10px;" />
+  </header>
+  <section class="metrics">
+    <div class="metric">
+      <div style="font-size:12px;color:#6b7280">Tasks</div>
+      <div style="font-size:26px;font-weight:700;"><?= exportData.tasks.length ?></div>
+    </div>
+    <div class="metric">
+      <div style="font-size:12px;color:#6b7280">Completed</div>
+      <div style="font-size:26px;font-weight:700;"><?= exportData.tasks.filter(function(t){return t.Status === 'Done';}).length ?></div>
+    </div>
+    <div class="metric">
+      <div style="font-size:12px;color:#6b7280">In Progress</div>
+      <div style="font-size:26px;font-weight:700;"><?= exportData.tasks.filter(function(t){return t.Status === 'In Progress';}).length ?></div>
+    </div>
+    <div class="metric">
+      <div style="font-size:12px;color:#6b7280">Subtasks</div>
+      <div style="font-size:26px;font-weight:700;"><?= exportData.subtasks.length ?></div>
+    </div>
+  </section>
+  <table>
+    <thead>
+      <tr>
+        <th>Task</th>
+        <th>Status</th>
+        <th>Priority</th>
+        <th>Assignee</th>
+        <th>Assigner</th>
+        <th>Due</th>
+        <th>Duration (mins)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <? exportData.tasks.forEach(function(task) { ?>
+      <tr>
+        <td><?= task.Name ?></td>
+        <td><?= task.Status ?></td>
+        <td><?= task.Priority ?></td>
+        <td><?= task.Assignee ?></td>
+        <td><?= task.Assigner ?></td>
+        <td><?= task.DueAt ?></td>
+        <td><?= task.DurationMins ?></td>
+      </tr>
+      <? }); ?>
+    </tbody>
+  </table>
+</body>
+</html>
+<? } else { ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><?= BRANDING.logo ?> <?= BRANDING.name ?></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --brand-primary: #4C1D95;
+      --brand-accent: #7C3AED;
+      --brand-dark: #1F1B2E;
+      --brand-muted: #EEF2FF;
+    }
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #111827 35%, #1f1b2e 100%);
+      min-height: 100vh;
+      color: #E5E7FF;
+    }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.55);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(124, 58, 237, 0.3);
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(17, 24, 39, 0.45);
+    }
+    .tab-active {
+      background: rgba(124, 58, 237, 0.2);
+      color: #F9FAFF !important;
+    }
+    .kanban-column {
+      min-height: 400px;
+      border-radius: 16px;
+      padding: 16px;
+      background: rgba(30, 41, 59, 0.65);
+      border: 1px dashed rgba(124, 58, 237, 0.3);
+    }
+    .task-card {
+      background: rgba(17, 24, 39, 0.75);
+      border: 1px solid rgba(124, 58, 237, 0.4);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      cursor: grab;
+      transition: transform 0.15s ease;
+    }
+    .task-card:hover { transform: translateY(-3px); }
+    .toast {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      background: rgba(22, 163, 74, 0.9);
+      color: white;
+      box-shadow: 0 12px 24px rgba(16, 185, 129, 0.4);
+      opacity: 0;
+      transform: translateY(-16px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 50;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .loader {
+      border: 4px solid rgba(255,255,255,0.2);
+      border-top: 4px solid var(--brand-accent);
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .scroll-thin::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scroll-thin::-webkit-scrollbar-thumb {
+      background: rgba(124, 58, 237, 0.5);
+      border-radius: 9999px;
+    }
+    .input-styled {
+      background: rgba(17, 24, 39, 0.65);
+      border: 1px solid rgba(124, 58, 237, 0.35);
+      border-radius: 12px;
+      padding: 10px 14px;
+      color: #EEF2FF;
+      width: 100%;
+    }
+    table.tasks-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table.tasks-table th, table.tasks-table td {
+      padding: 12px 10px;
+      border-bottom: 1px solid rgba(124, 58, 237, 0.25);
+      text-align: left;
+    }
+    table.tasks-table th {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(199, 210, 254, 0.8);
+    }
+    table.tasks-table tbody tr:hover {
+      background: rgba(76, 29, 149, 0.15);
+    }
+    @media (max-width: 768px) {
+      .grid-responsive {
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+      }
+      .kanban-wrapper {
+        overflow-x: auto;
+        display: grid;
+        grid-auto-flow: column;
+        gap: 16px;
+      }
+    }
+  </style>
+</head>
+<body class="pb-24">
+  <div id="toast" class="toast"></div>
+  <div class="min-h-screen flex items-center justify-center py-16" id="loginView">
+    <div class="glass-card max-w-md w-full p-10">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-3xl font-bold text-indigo-200 flex items-center gap-2">
+            <span class="text-4xl">🌐</span> Aura Flow V2
+          </h1>
+          <p class="text-sm text-indigo-200/70">Professional SaaS Task & Team Manager</p>
+        </div>
+        <span class="px-3 py-1 rounded-full bg-indigo-500/20 text-xs uppercase tracking-wider">Secure</span>
+      </div>
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="text-xs uppercase tracking-wider text-indigo-100/70">Email</label>
+          <input type="email" id="loginEmail" class="input-styled mt-1" placeholder="you@auraflow.app" required />
+        </div>
+        <div>
+          <label class="text-xs uppercase tracking-wider text-indigo-100/70">Password</label>
+          <input type="password" id="loginPassword" class="input-styled mt-1" placeholder="••••••••" required />
+        </div>
+        <button type="submit" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition text-sm font-semibold tracking-wide">
+          Sign in
+        </button>
+        <p class="text-xs text-indigo-100/60 text-center">Credentials validated against the Users sheet.</p>
+      </form>
+    </div>
+  </div>
 
+  <div id="appView" class="hidden">
+    <header class="px-6 md:px-12 pt-12">
+      <div class="glass-card p-6 md:p-8">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="text-4xl">🌐</span>
+              <div>
+                <h1 class="text-3xl font-bold text-indigo-100">Aura Flow V2</h1>
+                <p class="text-sm text-indigo-200/70">Professional SaaS Task, Team & Resource Manager</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-3 mt-4 text-xs text-indigo-100/80">
+              <span class="px-3 py-1 rounded-full bg-indigo-500/20">No-delay navigation</span>
+              <span class="px-3 py-1 rounded-full bg-indigo-500/20">Daily automated email reports</span>
+              <span class="px-3 py-1 rounded-full bg-indigo-500/20">Kanban + Focus timers</span>
+            </div>
+          </div>
+          <div class="bg-indigo-500/10 border border-indigo-500/40 rounded-2xl p-4 w-full md:w-72">
+            <p class="text-xs uppercase tracking-wider text-indigo-100/60">Signed in as</p>
+            <h2 class="text-lg font-semibold text-indigo-100" id="userDisplay"></h2>
+            <p class="text-xs text-indigo-100/60" id="userRoleDisplay"></p>
+            <div class="mt-3 space-y-2">
+              <label class="text-xs text-indigo-100/60">Notification Email</label>
+              <div class="flex gap-2">
+                <input id="notificationEmail" class="input-styled" type="email" placeholder="alerts@auraflow.app" />
+                <button id="saveNotificationBtn" class="px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="mt-8 flex flex-wrap gap-2" id="navTabs">
+          <button data-tab="dashboard" class="tab px-4 py-2 rounded-xl text-sm bg-indigo-500/10 hover:bg-indigo-500/30 transition">Dashboard</button>
+          <button data-tab="tasks" class="tab px-4 py-2 rounded-xl text-sm bg-indigo-500/10 hover:bg-indigo-500/30 transition">Tasks</button>
+          <button data-tab="kanban" class="tab px-4 py-2 rounded-xl text-sm bg-indigo-500/10 hover:bg-indigo-500/30 transition">Kanban</button>
+          <button data-tab="focus" class="tab px-4 py-2 rounded-xl text-sm bg-indigo-500/10 hover:bg-indigo-500/30 transition">Focus Mode</button>
+          <button data-tab="activity" class="tab px-4 py-2 rounded-xl text-sm bg-indigo-500/10 hover:bg-indigo-500/30 transition">Activity</button>
+          <button data-tab="admin" class="tab px-4 py-2 rounded-xl text-sm bg-indigo-500/10 hover:bg-indigo-500/30 transition" id="adminTab">Admin</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="px-6 md:px-12 pt-8 space-y-10">
+      <section id="dashboard" class="glass-card p-6 md:p-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6" id="dashboardCards">
+          <!-- metrics inserted dynamically -->
+        </div>
+        <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <canvas id="statusChart" height="260"></canvas>
+          <canvas id="priorityChart" height="260"></canvas>
+        </div>
+      </section>
+
+      <section id="tasks" class="glass-card p-6 md:p-8 hidden">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-semibold text-indigo-100">Task Management</h2>
+            <p class="text-sm text-indigo-200/60">Create, edit, and export tasks with instant refresh.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button id="newTaskBtn" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm">New Task</button>
+            <button id="exportCsvBtn" class="px-4 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/40 text-sm">Export CSV</button>
+            <button id="exportPdfBtn" class="px-4 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/40 text-sm">Export PDF</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto scroll-thin">
+          <table class="tasks-table" id="tasksTable">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Assignee</th>
+                <th>Due</th>
+                <th>Duration</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="kanban" class="glass-card p-6 md:p-8 hidden">
+        <div class="flex items-center justify-between flex-wrap gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-semibold text-indigo-100">Kanban Workflow</h2>
+            <p class="text-sm text-indigo-200/60">Drag and drop to update status. Color-coded for clarity.</p>
+          </div>
+          <div class="flex items-center gap-3 text-sm text-indigo-200/70">
+            <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-green-400"></span>Done</span>
+            <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-400"></span>In Progress</span>
+            <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-rose-400"></span>Blocked</span>
+          </div>
+        </div>
+        <div class="kanban-wrapper grid grid-cols-1 md:grid-cols-5 gap-6" id="kanbanColumns"></div>
+      </section>
+
+      <section id="focus" class="glass-card p-6 md:p-8 hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div>
+            <h2 class="text-2xl font-semibold text-indigo-100 mb-4">Focus Mode</h2>
+            <p class="text-sm text-indigo-200/60 mb-6">Track your deep work sessions, log completion time, and notify managers.</p>
+            <div class="space-y-4">
+              <div>
+                <label class="text-xs uppercase tracking-wider text-indigo-100/60">Select Task</label>
+                <select id="focusTaskSelect" class="input-styled mt-1"></select>
+              </div>
+              <div class="flex gap-3">
+                <button id="startFocusBtn" class="flex-1 py-3 rounded-xl bg-emerald-500/80 hover:bg-emerald-500 font-semibold">Start Timer</button>
+                <button id="stopFocusBtn" class="flex-1 py-3 rounded-xl bg-rose-500/80 hover:bg-rose-500 font-semibold">Stop</button>
+              </div>
+              <div class="glass-card p-4">
+                <p class="text-xs uppercase tracking-wider text-indigo-100/50">Elapsed</p>
+                <p class="text-4xl font-bold text-indigo-100" id="focusElapsed">00:00:00</p>
+                <p class="text-xs text-indigo-200/60" id="focusStatus">Timer idle</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-xl font-semibold text-indigo-100 mb-4">Recent Focus Sessions</h3>
+            <ul id="focusSessions" class="space-y-3 text-sm text-indigo-100/70"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="activity" class="glass-card p-6 md:p-8 hidden">
+        <h2 class="text-2xl font-semibold text-indigo-100 mb-4">Activity Feed</h2>
+        <ul id="activityFeed" class="space-y-4 max-h-[420px] overflow-y-auto scroll-thin"></ul>
+      </section>
+
+      <section id="admin" class="glass-card p-6 md:p-8 hidden">
+        <div class="flex flex-col lg:flex-row gap-8">
+          <div class="flex-1 space-y-6">
+            <div>
+              <h2 class="text-2xl font-semibold text-indigo-100">User Management</h2>
+              <p class="text-sm text-indigo-200/60 mb-4">Admins can create or update team members and roles.</p>
+              <form id="userForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input type="email" id="userEmail" class="input-styled" placeholder="Email" required />
+                <input type="text" id="userPassword" class="input-styled" placeholder="Password" required />
+                <select id="userRole" class="input-styled"></select>
+                <input type="email" id="userManager" class="input-styled" placeholder="Manager email" />
+                <div class="md:col-span-2 flex items-center gap-2">
+                  <input type="checkbox" id="userIsActive" checked class="w-4 h-4" />
+                  <label for="userIsActive" class="text-sm text-indigo-100/70">Active</label>
+                </div>
+                <input type="email" id="userNotify" class="input-styled md:col-span-2" placeholder="Notification email" />
+                <button type="submit" class="md:col-span-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold">Save User</button>
+              </form>
+            </div>
+            <div>
+              <h3 class="text-xl font-semibold text-indigo-100 mb-3">Bulk Upload Tasks</h3>
+              <p class="text-sm text-indigo-200/60">Upload CSV or XLSX files with column headers. Preview is shown before import.</p>
+              <input type="file" id="bulkFile" accept=".csv,.xlsx,.xls" class="input-styled" />
+              <div id="bulkPreview" class="mt-4 text-sm text-indigo-100/70"></div>
+              <button id="bulkImportBtn" class="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm">Import Tasks</button>
+            </div>
+          </div>
+          <div class="w-full lg:w-80 space-y-6">
+            <div class="glass-card p-4">
+              <h3 class="text-lg font-semibold text-indigo-100">Quick Export</h3>
+              <p class="text-sm text-indigo-200/60">Download reports instantly with branding.</p>
+              <div class="mt-3 space-y-3">
+                <button class="w-full py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/50 text-sm" id="adminExportCsv">Download CSV</button>
+                <button class="w-full py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/50 text-sm" id="adminExportPdf">Download PDF</button>
+              </div>
+            </div>
+            <div class="glass-card p-4">
+              <h3 class="text-lg font-semibold text-indigo-100">Attachments</h3>
+              <p class="text-sm text-indigo-200/60">Link Drive files or resources to selected tasks.</p>
+              <form id="attachmentForm" class="space-y-3">
+                <select id="attachmentTask" class="input-styled"></select>
+                <input type="text" id="attachmentName" class="input-styled" placeholder="Display name" />
+                <input type="url" id="attachmentUrl" class="input-styled" placeholder="https://drive.google.com/..." />
+                <button type="submit" class="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm">Save Attachment</button>
+              </form>
+              <ul id="attachmentList" class="mt-4 space-y-2 text-sm text-indigo-100/70 max-h-48 overflow-y-auto scroll-thin"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-40 items-center justify-center">
+    <div class="glass-card max-w-3xl w-full p-8 relative">
+      <button id="modalClose" class="absolute top-4 right-4 text-indigo-100/70">✕</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script>
+    const App = {
+      user: null,
+      tasks: [],
+      subtasks: [],
+      attachments: [],
+      metrics: null,
+      statuses: [],
+      statusColors: {},
+      priorityColors: {},
+      roles: [],
+      users: [],
+      charts: {},
+      lazySections: {},
+      focusTimer: { interval: null, start: null, taskId: null, sessions: [] },
+      bulkRows: [],
+      init() {
+        this.cacheDom();
+        this.bindEvents();
+        this.switchTab('dashboard');
+      },
+      cacheDom() {
+        this.loginView = document.getElementById('loginView');
+        this.loginForm = document.getElementById('loginForm');
+        this.appView = document.getElementById('appView');
+        this.userDisplay = document.getElementById('userDisplay');
+        this.userRoleDisplay = document.getElementById('userRoleDisplay');
+        this.notificationEmailInput = document.getElementById('notificationEmail');
+        this.dashboardCards = document.getElementById('dashboardCards');
+        this.tasksTableBody = document.querySelector('#tasksTable tbody');
+        this.statusChartCanvas = document.getElementById('statusChart');
+        this.priorityChartCanvas = document.getElementById('priorityChart');
+        this.kanbanColumns = document.getElementById('kanbanColumns');
+        this.focusTaskSelect = document.getElementById('focusTaskSelect');
+        this.focusElapsed = document.getElementById('focusElapsed');
+        this.focusStatus = document.getElementById('focusStatus');
+        this.focusSessionsList = document.getElementById('focusSessions');
+        this.activityFeed = document.getElementById('activityFeed');
+        this.modal = document.getElementById('modal');
+        this.modalContent = document.getElementById('modalContent');
+        this.modalClose = document.getElementById('modalClose');
+        this.toast = document.getElementById('toast');
+        this.bulkPreview = document.getElementById('bulkPreview');
+        this.attachmentList = document.getElementById('attachmentList');
+      },
+      bindEvents() {
+        this.loginForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          this.login();
+        });
+        document.getElementById('saveNotificationBtn').addEventListener('click', () => this.saveNotificationEmail());
+        document.getElementById('newTaskBtn').addEventListener('click', () => this.openTaskModal());
+        document.getElementById('exportCsvBtn').addEventListener('click', () => this.exportTasks('csv'));
+        document.getElementById('exportPdfBtn').addEventListener('click', () => this.exportTasks('pdf'));
+        document.getElementById('startFocusBtn').addEventListener('click', () => this.startFocus());
+        document.getElementById('stopFocusBtn').addEventListener('click', () => this.stopFocus());
+        document.getElementById('bulkFile').addEventListener('change', (e) => this.previewBulkImport(e.target.files[0]));
+        document.getElementById('bulkImportBtn').addEventListener('click', () => this.submitBulkImport());
+        document.getElementById('attachmentForm').addEventListener('submit', (e) => {
+          e.preventDefault();
+          this.saveAttachment();
+        });
+        document.getElementById('adminExportCsv').addEventListener('click', () => this.exportTasks('csv'));
+        document.getElementById('adminExportPdf').addEventListener('click', () => this.exportTasks('pdf'));
+        document.getElementById('userForm').addEventListener('submit', (e) => {
+          e.preventDefault();
+          this.saveUser();
+        });
+        this.modalClose.addEventListener('click', () => this.toggleModal(false));
+        this.modal.addEventListener('click', (e) => {
+          if (e.target === this.modal) this.toggleModal(false);
+        });
+        document.querySelectorAll('#navTabs .tab').forEach(btn => {
+          btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
+        });
+      },
+      login() {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        if (!email || !password) {
+          return this.showToast('Please enter email and password.', true);
+        }
+        this.setLoading(true);
+        google.script.run
+          .withSuccessHandler((res) => {
+            this.setLoading(false);
+            if (res.success) {
+              this.onLogin(res.user, res.bootstrap);
+            }
+          })
+          .withFailureHandler((err) => {
+            this.setLoading(false);
+            this.showToast(err.message || 'Login failed', true);
+          })
+          .loginUser(email, password);
+      },
+      onLogin(user, bootstrap) {
+        this.user = user;
+        this.loginView.classList.add('hidden');
+        this.appView.classList.remove('hidden');
+        this.userDisplay.textContent = user.email;
+        this.userRoleDisplay.textContent = `Role: ${user.role}`;
+        this.notificationEmailInput.value = user.notificationEmail || '';
+        if (user.role !== 'Admin') {
+          document.getElementById('adminTab').classList.add('hidden');
+        }
+        this.applyBootstrap(bootstrap);
+      },
+      applyBootstrap(data) {
+        this.tasks = data.tasks || [];
+        this.subtasks = data.subtasks || [];
+        this.attachments = data.attachments || [];
+        this.metrics = data.metrics || null;
+        this.statuses = data.statuses || [];
+        this.statusColors = data.statusColors || {};
+        this.priorityColors = data.priorityColors || {};
+        this.roles = data.roles || [];
+        this.users = data.users || [];
+        this.renderDashboard();
+        this.renderTasks();
+        this.renderKanban();
+        this.renderFocus();
+        this.renderActivity(data.activity || []);
+        this.renderAttachments();
+        this.populateAdminLists();
+        this.lazySections = { dashboard: true, tasks: true, focus: true };
+      },
+      switchTab(tab) {
+        document.querySelectorAll('main section').forEach(section => section.classList.add('hidden'));
+        const current = document.getElementById(tab);
+        if (current) {
+          current.classList.remove('hidden');
+        }
+        document.querySelectorAll('#navTabs .tab').forEach(btn => btn.classList.remove('tab-active'));
+        const activeBtn = document.querySelector(`#navTabs .tab[data-tab="${tab}"]`);
+        if (activeBtn) {
+          activeBtn.classList.add('tab-active');
+        }
+        if (!this.lazySections[tab] && this.user) {
+          this.lazySections[tab] = true;
+          this.lazyLoad(tab);
+        }
+        if (tab === 'kanban') {
+          this.enableKanbanDrag();
+        }
+      },
+      lazyLoad(section) {
+        this.showToast('Loading ' + section + '…');
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (section === 'dashboard' && res.metrics) {
+              this.metrics = res.metrics;
+              this.renderDashboard();
+            }
+            if (section === 'kanban' && res.tasks) {
+              this.tasks = res.tasks;
+              this.renderKanban();
+            }
+            if (section === 'activity' && res.activity) {
+              this.renderActivity(res.activity);
+            }
+          })
+          .withFailureHandler((err) => this.showToast(err.message || 'Lazy load failed', true))
+          .lazyLoadData({ email: this.user.email, role: this.user.role }, { section });
+      },
+      setLoading(isLoading) {
+        if (isLoading) {
+          this.showToast('Processing…');
+        }
+      },
+      showToast(message, isError = false) {
+        this.toast.textContent = message;
+        this.toast.style.background = isError ? 'rgba(239,68,68,0.9)' : 'rgba(124,58,237,0.92)';
+        this.toast.classList.add('show');
+        clearTimeout(this.toastTimeout);
+        this.toastTimeout = setTimeout(() => this.toast.classList.remove('show'), 3000);
+      },
+      renderDashboard() {
+        if (!this.metrics) return;
+        const cards = [
+          { label: 'Total Tasks', value: this.metrics.totalTasks, accent: 'bg-indigo-500/20' },
+          { label: 'Completed', value: this.metrics.completed, accent: 'bg-emerald-500/20' },
+          { label: 'In Progress', value: this.metrics.inProgress, accent: 'bg-amber-500/20' },
+          { label: 'Blocked', value: this.metrics.blocked, accent: 'bg-rose-500/20' }
+        ];
+        this.dashboardCards.innerHTML = cards.map(card => `
+          <div class="glass-card p-5 border border-white/5 ${card.accent}">
+            <p class="text-xs uppercase tracking-wider text-indigo-100/60">${card.label}</p>
+            <p class="text-3xl font-bold text-indigo-100 mt-2">${card.value}</p>
+          </div>
+        `).join('');
+        this.drawChart('statusChart', this.metrics.byStatus.map(b => b.status), this.metrics.byStatus.map(b => b.count), this.metrics.byStatus.map(b => b.color));
+        this.drawChart('priorityChart', this.metrics.byPriority.map(b => b.priority), this.metrics.byPriority.map(b => b.count), this.metrics.byPriority.map(b => b.color));
+      },
+      drawChart(id, labels, values, colors) {
+        if (!this.charts[id]) {
+          const ctx = document.getElementById(id).getContext('2d');
+          this.charts[id] = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+            options: {
+              plugins: {
+                legend: { labels: { color: '#c7d2fe' } }
+              }
+            }
+          });
+        } else {
+          this.charts[id].data.labels = labels;
+          this.charts[id].data.datasets[0].data = values;
+          this.charts[id].data.datasets[0].backgroundColor = colors;
+          this.charts[id].update();
+        }
+      },
+      renderTasks() {
+        this.tasksTableBody.innerHTML = this.tasks.map(task => `
+          <tr>
+            <td>
+              <p class="font-semibold text-indigo-100">${task.Name}</p>
+              <p class="text-xs text-indigo-200/60">${task.Category || ''}</p>
+            </td>
+            <td><span class="px-2 py-1 rounded-lg text-xs" style="background:${this.statusColors[task.Status] || '#4338CA'}33;color:${this.statusColors[task.Status] || '#E5E7FF'};">${task.Status}</span></td>
+            <td><span class="px-2 py-1 rounded-lg text-xs" style="background:${this.priorityColors[task.Priority] || '#64748b'}33;color:${this.priorityColors[task.Priority] || '#E5E7FF'};">${task.Priority}</span></td>
+            <td class="text-sm text-indigo-100/80">${task.Assignee || ''}</td>
+            <td class="text-sm text-indigo-100/80">${task.DueAt || '—'}</td>
+            <td class="text-sm text-indigo-100/80">${task.DurationMins || 0} mins</td>
+            <td class="text-right text-sm text-indigo-100/70">
+              <button class="text-indigo-200 hover:text-white" data-task="${task.TaskID}" onclick="App.openTaskModal('${task.TaskID}')">Manage</button>
+            </td>
+          </tr>
+        `).join('');
+      },
+      renderKanban() {
+        const groups = {};
+        this.statuses.forEach(status => groups[status] = []);
+        this.tasks.forEach(task => {
+          if (!groups[task.Status]) groups[task.Status] = [];
+          groups[task.Status].push(task);
+        });
+        this.kanbanColumns.innerHTML = this.statuses.map(status => `
+          <div class="kanban-column" data-status="${status}" ondragover="event.preventDefault()" ondrop="App.dropOnKanban(event, '${status}')">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-lg font-semibold text-indigo-100">${status}</h3>
+              <span class="text-xs text-indigo-200/70">${groups[status].length}</span>
+            </div>
+            <div>
+              ${groups[status].map(task => `
+                <article class="task-card" draggable="true" data-id="${task.TaskID}" ondragstart="App.dragTask(event, '${task.TaskID}')">
+                  <div class="flex items-center justify-between">
+                    <h4 class="font-semibold text-indigo-100">${task.Name}</h4>
+                    <span class="text-xs px-2 py-1 rounded bg-white/10">${task.Priority}</span>
+                  </div>
+                  <p class="text-xs text-indigo-200/60 mt-1">${task.Assignee}</p>
+                  <div class="flex flex-wrap gap-1 mt-2 text-[10px]">
+                    ${task.Labels.map(label => `<span class="px-2 py-0.5 rounded bg-indigo-500/20">${label}</span>`).join('')}
+                  </div>
+                </article>
+              `).join('')}
+            </div>
+          </div>
+        `).join('');
+      },
+      renderFocus() {
+        this.focusTaskSelect.innerHTML = this.tasks.map(task => `<option value="${task.TaskID}">${task.Name}</option>`).join('');
+        this.focusSessionsList.innerHTML = this.focusTimer.sessions.slice(-10).reverse().map(session => `
+          <li class="glass-card p-3 border border-white/5">
+            <p class="font-semibold text-indigo-100">${session.taskName}</p>
+            <p class="text-xs text-indigo-200/60">Duration: ${session.duration} mins • ${session.end}</p>
+          </li>
+        `).join('');
+      },
+      renderActivity(activity) {
+        const data = activity || [];
+        if (!data.length) {
+          this.activityFeed.innerHTML = '<li class="text-sm text-indigo-200/60">No recent activity logged.</li>';
+          return;
+        }
+        this.activityFeed.innerHTML = data.map(item => `
+          <li class="glass-card p-4 border border-white/5">
+            <p class="font-semibold text-indigo-100">${item.ActorEmail} • ${item.Action}</p>
+            <p class="text-xs text-indigo-200/60">${item.TargetType} → ${item.TargetID}</p>
+            <p class="text-xs text-indigo-200/50 mt-1">${new Date(item.At).toLocaleString()}</p>
+          </li>
+        `).join('');
+      },
+      renderAttachments() {
+        const tasksById = Object.fromEntries(this.tasks.map(t => [t.TaskID, t.Name]));
+        this.attachmentList.innerHTML = this.attachments.map(att => `
+          <li class="flex items-center justify-between glass-card p-3 border border-white/5">
+            <div>
+              <p class="font-semibold text-indigo-100">${att.FileName || 'Resource'} • ${tasksById[att.TaskID] || ''}</p>
+              <a href="${att.Url}" target="_blank" class="text-xs text-indigo-200/70 underline">${att.Url}</a>
+            </div>
+          </li>
+        `).join('');
+        document.getElementById('attachmentTask').innerHTML = this.tasks.map(task => `<option value="${task.TaskID}">${task.Name}</option>`).join('');
+      },
+      populateAdminLists() {
+        const roleSelect = document.getElementById('userRole');
+        roleSelect.innerHTML = this.roles.map(role => `<option value="${role}">${role}</option>`).join('');
+        if (this.user && this.user.role !== 'Admin') {
+          document.getElementById('admin').classList.add('hidden');
+        }
+      },
+      refresh() {
+        google.script.run
+          .withSuccessHandler((res) => this.applyBootstrap(res))
+          .withFailureHandler(err => this.showToast(err.message || 'Refresh failed', true))
+          .refreshBootstrap({ email: this.user.email, role: this.user.role });
+      },
+      openTaskModal(taskId) {
+        const task = this.tasks.find(t => t.TaskID === taskId) || {};
+        const subtasks = this.subtasks.filter(st => st.TaskID === taskId);
+        this.modalContent.innerHTML = `
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="space-y-4">
+              <h3 class="text-xl font-semibold text-indigo-100">${task.TaskID ? 'Update Task' : 'Create Task'}</h3>
+              <label class="text-xs text-indigo-200/60">Task name</label>
+              <input id="modalTaskName" class="input-styled" value="${task.Name || ''}" />
+              <label class="text-xs text-indigo-200/60">Category</label>
+              <input id="modalTaskCategory" class="input-styled" value="${task.Category || ''}" />
+              <label class="text-xs text-indigo-200/60">Priority</label>
+              <select id="modalTaskPriority" class="input-styled">
+                ${Object.keys(this.priorityColors).map(p => `<option value="${p}" ${task.Priority === p ? 'selected' : ''}>${p}</option>`).join('')}
+              </select>
+              <label class="text-xs text-indigo-200/60">Status</label>
+              <select id="modalTaskStatus" class="input-styled">
+                ${this.statuses.map(status => `<option value="${status}" ${task.Status === status ? 'selected' : ''}>${status}</option>`).join('')}
+              </select>
+              <label class="text-xs text-indigo-200/60">Assignee</label>
+              <select id="modalTaskAssignee" class="input-styled">
+                ${this.users.map(user => `<option value="${user.email}" ${task.Assignee === user.email ? 'selected' : ''}>${user.email}</option>`).join('')}
+              </select>
+              <label class="text-xs text-indigo-200/60">Due date</label>
+              <input type="date" id="modalTaskDue" class="input-styled" value="${task.DueAt ? this.toDateInputValue(task.DueAt) : ''}" />
+              <label class="text-xs text-indigo-200/60">Labels</label>
+              <input id="modalTaskLabels" class="input-styled" value="${task.Labels ? task.Labels.join(', ') : ''}" placeholder="design, research" />
+              <label class="text-xs text-indigo-200/60">Resources (comma separated URLs)</label>
+              <input id="modalTaskResources" class="input-styled" value="${task.Resources ? task.Resources.join(', ') : ''}" />
+              <label class="text-xs text-indigo-200/60">Notes</label>
+              <textarea id="modalTaskNotes" class="input-styled" rows="4">${task.Notes || ''}</textarea>
+              <button class="py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500" onclick="App.saveTask('${task.TaskID || ''}')">${task.TaskID ? 'Update Task' : 'Create Task'}</button>
+            </div>
+            <div class="space-y-4">
+              <h4 class="text-lg font-semibold text-indigo-100">Subtasks</h4>
+              <ul class="space-y-3" id="modalSubtasks">
+                ${subtasks.map(st => `
+                  <li class="glass-card p-3 border border-white/5">
+                    <p class="font-semibold text-indigo-100">${st.Name}</p>
+                    <p class="text-xs text-indigo-200/60">${st.DurationMins} mins • ${st.Status}</p>
+                  </li>
+                `).join('')}
+              </ul>
+              <div class="space-y-2">
+                <input id="newSubtaskName" class="input-styled" placeholder="Subtask name" />
+                <input id="newSubtaskDuration" class="input-styled" placeholder="Duration mins" type="number" />
+                <select id="newSubtaskStatus" class="input-styled">
+                  ${this.statuses.map(status => `<option value="${status}">${status}</option>`).join('')}
+                </select>
+                <button class="w-full py-2 rounded-xl bg-indigo-500/40 hover:bg-indigo-500/60" onclick="App.addSubtask('${task.TaskID || ''}')">Add Subtask</button>
+              </div>
+            </div>
+          </div>
+        `;
+        this.toggleModal(true);
+      },
+      toggleModal(show) {
+        if (show) {
+          this.modal.classList.remove('hidden');
+          this.modal.classList.add('flex');
+        } else {
+          this.modal.classList.add('hidden');
+          this.modal.classList.remove('flex');
+        }
+      },
+      saveTask(taskId) {
+        const payload = {
+          Name: document.getElementById('modalTaskName').value,
+          Category: document.getElementById('modalTaskCategory').value,
+          Priority: document.getElementById('modalTaskPriority').value,
+          Status: document.getElementById('modalTaskStatus').value,
+          Assignee: document.getElementById('modalTaskAssignee').value,
+          DueAt: document.getElementById('modalTaskDue').value,
+          Labels: document.getElementById('modalTaskLabels').value.split(',').map(s => s.trim()).filter(Boolean),
+          Resources: document.getElementById('modalTaskResources').value.split(',').map(s => s.trim()).filter(Boolean),
+          Notes: document.getElementById('modalTaskNotes').value
+        };
+        if (taskId) {
+          payload.TaskID = taskId;
+          payload.Labels = payload.Labels.join(', ');
+          payload.ResourcesCSV = payload.Resources.join(', ');
+          google.script.run
+            .withSuccessHandler(() => {
+              this.toggleModal(false);
+              this.showToast('Task updated');
+              this.refresh();
+            })
+            .withFailureHandler(err => this.showToast(err.message || 'Update failed', true))
+            .updateTask({ email: this.user.email, role: this.user.role }, payload);
+        } else {
+          payload.Labels = payload.Labels;
+          payload.Resources = payload.Resources;
+          google.script.run
+            .withSuccessHandler(() => {
+              this.toggleModal(false);
+              this.showToast('Task created');
+              this.refresh();
+            })
+            .withFailureHandler(err => this.showToast(err.message || 'Create failed', true))
+            .createTask({ email: this.user.email, role: this.user.role }, payload);
+        }
+      },
+      addSubtask(taskId) {
+        if (!taskId) {
+          return this.showToast('Save the task before adding subtasks', true);
+        }
+        const subtask = {
+          TaskID: taskId,
+          Name: document.getElementById('newSubtaskName').value,
+          DurationMins: Number(document.getElementById('newSubtaskDuration').value || 0),
+          Status: document.getElementById('newSubtaskStatus').value
+        };
+        google.script.run
+          .withSuccessHandler(() => {
+            this.showToast('Subtask saved');
+            this.refresh();
+          })
+          .withFailureHandler(err => this.showToast(err.message || 'Subtask error', true))
+          .saveSubtask({ email: this.user.email, role: this.user.role }, subtask);
+      },
+      dragTask(event, taskId) {
+        event.dataTransfer.setData('text/plain', taskId);
+      },
+      dropOnKanban(event, status) {
+        const taskId = event.dataTransfer.getData('text/plain');
+        if (!taskId) return;
+        google.script.run
+          .withSuccessHandler(() => {
+            this.showToast('Task status updated');
+            this.refresh();
+          })
+          .withFailureHandler(err => this.showToast(err.message || 'Status update failed', true))
+          .updateTaskStatus({ email: this.user.email, role: this.user.role }, { TaskID: taskId, Status: status });
+      },
+      enableKanbanDrag() {
+        document.querySelectorAll('.task-card').forEach(card => {
+          card.addEventListener('dragstart', (event) => this.dragTask(event, card.dataset.id));
+        });
+      },
+      startFocus() {
+        if (this.focusTimer.interval) return;
+        const taskId = this.focusTaskSelect.value;
+        if (!taskId) return this.showToast('Select a task first', true);
+        this.focusTimer.taskId = taskId;
+        this.focusTimer.start = Date.now();
+        this.focusStatus.textContent = 'Timer running…';
+        this.focusTimer.interval = setInterval(() => {
+          const elapsed = Date.now() - this.focusTimer.start;
+          this.focusElapsed.textContent = this.formatDuration(elapsed);
+        }, 1000);
+      },
+      stopFocus() {
+        if (!this.focusTimer.interval) return;
+        clearInterval(this.focusTimer.interval);
+        const elapsedMs = Date.now() - this.focusTimer.start;
+        const minutes = Math.round(elapsedMs / 60000);
+        const task = this.tasks.find(t => t.TaskID === this.focusTimer.taskId);
+        this.focusTimer.sessions.push({
+          taskId: this.focusTimer.taskId,
+          taskName: task ? task.Name : 'Task',
+          duration: minutes,
+          end: new Date().toLocaleString()
+        });
+        this.focusElapsed.textContent = '00:00:00';
+        this.focusStatus.textContent = 'Timer idle';
+        this.focusTimer.interval = null;
+        google.script.run
+          .withSuccessHandler(() => {
+            this.showToast('Focus session logged');
+            this.refresh();
+          })
+          .withFailureHandler(err => this.showToast(err.message || 'Focus logging failed', true))
+          .recordFocusSession({ email: this.user.email, role: this.user.role }, { TaskID: this.focusTimer.taskId, Minutes: minutes });
+        google.script.run
+          .withFailureHandler(err => this.showToast(err.message || 'Timer update failed', true))
+          .toggleTaskTimer({ email: this.user.email, role: this.user.role }, { TaskID: this.focusTimer.taskId, Minutes: minutes });
+        this.renderFocus();
+      },
+      formatDuration(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+        const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+        const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+      },
+      previewBulkImport(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (file.name.endsWith('.csv')) {
+            this.bulkRows = this.parseCsv(e.target.result);
+          } else {
+            const workbook = XLSX.read(e.target.result, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            this.bulkRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+          }
+          this.bulkPreview.innerHTML = `<p>${this.bulkRows.length} rows ready for import</p>` + this.renderPreviewTable(this.bulkRows.slice(0, 5));
+        };
+        if (file.name.endsWith('.csv')) {
+          reader.readAsText(file);
+        } else {
+          reader.readAsBinaryString(file);
+        }
+      },
+      renderPreviewTable(rows) {
+        if (!rows.length) return '';
+        const headers = Object.keys(rows[0]);
+        const headerRow = headers.map(h => `<th class="px-3 py-1 border border-indigo-500/30 text-xs">${h}</th>`).join('');
+        const body = rows.map(row => `<tr>${headers.map(h => `<td class="px-3 py-1 border border-indigo-500/20 text-xs">${row[h] || ''}</td>`).join('')}</tr>`).join('');
+        return `<table class="mt-3 w-full border border-indigo-500/40">${headerRow ? `<thead><tr>${headerRow}</tr></thead>` : ''}<tbody>${body}</tbody></table>`;
+      },
+      parseCsv(text) {
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+        const headers = lines.shift().split(',').map(h => h.trim());
+        return lines.map(line => {
+          const values = line.split(',');
+          const record = {};
+          headers.forEach((header, idx) => record[header] = values[idx] || '');
+          return record;
+        });
+      },
+      submitBulkImport() {
+        if (!this.bulkRows.length) return this.showToast('No rows loaded for import', true);
+        google.script.run
+          .withSuccessHandler((res) => {
+            this.showToast(`Imported ${res.imported.length} tasks`);
+            this.refresh();
+          })
+          .withFailureHandler(err => this.showToast(err.message || 'Bulk import failed', true))
+          .bulkImport({ email: this.user.email, role: this.user.role }, { rows: this.bulkRows });
+      },
+      exportTasks(format) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            const link = document.createElement('a');
+            link.href = `data:${res.mimeType};base64,${res.data}`;
+            link.download = res.fileName;
+            link.click();
+            this.showToast(`Exported ${format.toUpperCase()} file`);
+          })
+          .withFailureHandler(err => this.showToast(err.message || 'Export failed', true))
+          .exportTasks({ email: this.user.email, role: this.user.role }, { format });
+      },
+      saveNotificationEmail() {
+        const email = this.notificationEmailInput.value.trim();
+        google.script.run
+          .withSuccessHandler(() => this.showToast('Notification email saved'))
+          .withFailureHandler(err => this.showToast(err.message || 'Unable to save notification email', true))
+          .setUserNotificationEmail({ email: this.user.email, role: this.user.role }, email);
+      },
+      saveAttachment() {
+        const payload = {
+          TaskID: document.getElementById('attachmentTask').value,
+          FileName: document.getElementById('attachmentName').value,
+          Url: document.getElementById('attachmentUrl').value
+        };
+        google.script.run
+          .withSuccessHandler(() => {
+            this.showToast('Attachment saved');
+            this.refresh();
+          })
+          .withFailureHandler(err => this.showToast(err.message || 'Attachment error', true))
+          .recordAttachment({ email: this.user.email, role: this.user.role }, payload);
+      },
+      saveUser() {
+        const payload = {
+          Email: document.getElementById('userEmail').value,
+          Password: document.getElementById('userPassword').value,
+          Role: document.getElementById('userRole').value,
+          ManagerEmail: document.getElementById('userManager').value,
+          IsActive: document.getElementById('userIsActive').checked,
+          NotificationEmail: document.getElementById('userNotify').value
+        };
+        google.script.run
+          .withSuccessHandler(() => {
+            this.showToast('User saved');
+            this.refresh();
+          })
+          .withFailureHandler(err => this.showToast(err.message || 'User save failed', true))
+          .upsertUser({ email: this.user.email, role: this.user.role }, payload);
+      },
+      toDateInputValue(date) {
+        if (!date) return '';
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return '';
+        return d.toISOString().split('T')[0];
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => App.init());
+  </script>
+</body>
+</html>
+<? } ?>
